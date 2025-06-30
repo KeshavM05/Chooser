@@ -1,0 +1,407 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Image,
+  Animated,
+  Dimensions,
+  PanResponder,
+} from 'react-native';
+import { COLORS, FONT_SIZES, SPACING } from '../styles/theme';
+
+const { width, height } = Dimensions.get('window');
+
+// Animated pulsing ring
+const AnimatedRing = ({ x, y, visible = true }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (visible) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      scale.setValue(1);
+    }
+  }, [visible]);
+  if (!visible) return null;
+  return (
+    <Animated.View
+      style={[
+        styles.ring,
+        {
+          left: x,
+          top: y,
+          transform: [{ scale }],
+          opacity: visible ? 1 : 0,
+        },
+      ]}
+    />
+  );
+};
+
+// Animated solid circle
+const SolidCircle = ({ x, y }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.15, duration: 600, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  return (
+    <Animated.View
+      style={[
+        styles.solidCircle,
+        {
+          left: x,
+          top: y,
+          transform: [{ scale }],
+        },
+      ]}
+    />
+  );
+};
+
+// Animated finger image
+const AnimatedFinger = ({ source, style, from, to, visible = true, delay = 0, onSettled }) => {
+  const translateX = useRef(new Animated.Value(from)).current;
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(translateX, {
+        toValue: to,
+        duration: 500,
+        delay,
+        useNativeDriver: true,
+      }).start(() => onSettled && onSettled());
+    } else {
+      translateX.setValue(from);
+    }
+  }, [visible]);
+  if (!visible) return null;
+  return (
+    <Animated.Image source={source} style={[style, { transform: [{ translateX }] }]} resizeMode="contain" />
+  );
+};
+
+const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
+  const [step, setStep] = useState(0);
+  // Step 2 animation state
+  const [showFingers, setShowFingers] = useState(false);
+  const [showRings, setShowRings] = useState(false);
+  // Step 3 animation state
+  const [hideLeft, setHideLeft] = useState(false);
+  const [showSolid, setShowSolid] = useState(false);
+
+  // Fade out overlay for step 2
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
+  // For step 2, track when both hands have settled
+  const [handsSettled, setHandsSettled] = useState(false);
+  // For step 3, fade out left ring
+  const [showLeftRing, setShowLeftRing] = useState(true);
+
+  // Asset paths
+  const phone = require('../assets/phone.png');
+  const fingerWhite = require('../assets/finger-white.png');
+  const fingerBlack = require('../assets/finger-black.png');
+
+  // Step transitions
+  useEffect(() => {
+    if (step === 1) {
+      // Fade out overlay, then show fingers
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowFingers(true);
+      });
+    } else {
+      overlayOpacity.setValue(1);
+      setShowFingers(false);
+      setShowRings(false);
+      setHandsSettled(false);
+      setShowLeftRing(true);
+      setHideLeft(false);
+      setShowSolid(false);
+    }
+  }, [step]);
+
+  // When both hands have settled, show rings
+  useEffect(() => {
+    if (handsSettled && step === 1) {
+      setTimeout(() => setShowRings(true), 200);
+    }
+  }, [handsSettled, step]);
+
+  // Step 3: animate left hand out, fade out left ring, show solid circle
+  useEffect(() => {
+    if (step === 2) {
+      setTimeout(() => {
+        setHideLeft(true);
+        setShowLeftRing(false);
+        setTimeout(() => setShowSolid(true), 400);
+      }, 400);
+    }
+  }, [step]);
+
+  // Reset step to 0 when resetKey changes
+  useEffect(() => {
+    setStep(0);
+  }, [resetKey]);
+
+  // Layout constants (relative to phone mockup)
+  const mockupWidth = 220;
+  const mockupHeight = 340;
+  const mockupCenterX = mockupWidth / 2;
+  const mockupCenterY = mockupHeight / 2;
+
+  const handWidth = 70 * 2.5;
+  const handHeight = 120 * 2.5;
+  const ringSize = 20;
+
+  // Example offsets (tune as needed)
+  const leftHandOffset = { x: -55, y: -80 };
+  const rightHandOffset = { x: 55, y: 80 };
+  const leftRingOffset = { x: -0, y: 0 };
+  const rightRingOffset = { x: 0, y: 0 };
+
+  const leftHandStyle = {
+    position: 'absolute',
+    width: handWidth,
+    height: handHeight,
+    left: mockupCenterX + leftHandOffset.x - handWidth / 2,
+    top: mockupCenterY + leftHandOffset.y - handHeight / 2,
+    zIndex: 2,
+  };
+  const rightHandStyle = {
+    position: 'absolute',
+    width: handWidth,
+    height: handHeight,
+    left: mockupCenterX + rightHandOffset.x - handWidth / 2,
+    top: mockupCenterY + rightHandOffset.y - handHeight / 2,
+    zIndex: 2,
+  };
+  const leftRingPos = {
+    x: mockupCenterX + leftRingOffset.x - ringSize / 2,
+    y: mockupCenterY + leftRingOffset.y - ringSize / 2,
+  };
+  const rightRingPos = {
+    x: mockupCenterX + rightRingOffset.x - ringSize / 2,
+    y: mockupCenterY + rightRingOffset.y - ringSize / 2,
+  };
+
+  return (
+    <View style={[styles.container, props.style]}>
+      {/* Drag handle */}
+      <View style={styles.dragHandleContainer} pointerEvents="none">
+        <View style={styles.dragHandle} />
+      </View>
+      <View style={styles.content}>
+        {/* Title and subtitle */}
+        <Text style={styles.title}>{step === 0 ? 'Welcome' : step === 1 ? 'Step 1' : 'Step 2'}</Text>
+        <Text style={styles.subtitle}>
+          {step === 0
+            ? 'This app selects a random finger among the fingers placed on the screen.'
+            : step === 1
+            ? 'Simply place two or more fingers on the screen.'
+            : 'After three seconds, one is randomly chosen!'}
+        </Text>
+        {/* Phone mockup with overlayed content */}
+        <View style={[styles.phoneContainer, { width: mockupWidth, height: mockupHeight }]}>
+          <Image source={phone} style={styles.phoneImage} resizeMode="contain" />
+          {/* Overlayed content inside phone */}
+          {/* Step 0: Welcome overlay */}
+          {step === 0 && (
+            <View style={styles.overlayContainer} pointerEvents="none">
+              <Text style={styles.overlayTitle}>CHOOSER</Text>
+              <Text style={styles.overlaySubtitle}>A random finger selector.</Text>
+            </View>
+          )}
+          {/* Step 1: Rings and hands, correct layer order */}
+          {step === 1 && (
+            <>
+              {/* Rings first (zIndex 1) */}
+              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} />
+              <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />
+              {/* Hands on top (zIndex 2) */}
+              <Animated.Image source={fingerWhite} style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]} />
+              <Animated.Image source={fingerBlack} style={[styles.handStyle, { ...rightHandStyle, width: handWidth, height: handHeight }]} />
+            </>
+          )}
+          {/* Step 2: Animate left hand out, fade out left ring, show solid circle */}
+          {step === 2 && (
+            <>
+              <AnimatedFinger
+                source={fingerWhite}
+                style={leftHandStyle}
+                from={0}
+                to={-300}
+                visible={!hideLeft}
+                delay={0}
+              />
+              <AnimatedFinger
+                source={fingerBlack}
+                style={rightHandStyle}
+                from={0}
+                to={0}
+                visible={true}
+                delay={0}
+              />
+              {/* Fade out left ring, replace right ring with solid circle */}
+              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={showLeftRing} />
+              {!showSolid && <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} />}
+              {showSolid && <SolidCircle x={rightRingPos.x} y={rightRingPos.y} />}
+            </>
+          )}
+        </View>
+        {/* Button */}
+        <TouchableOpacity
+          style={step < 2 ? styles.buttonBlue : styles.buttonGreen}
+          onPress={() => {
+            if (step < 2) setStep(step + 1);
+            else if (onDone) onDone();
+          }}
+        >
+          <Text style={styles.buttonText}>{step < 2 ? 'Next' : 'Done'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: SPACING.screenPadding,
+    paddingTop: SPACING.topMargin,
+    paddingBottom: SPACING.screenPadding,
+  },
+  title: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.title,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: 0.2,
+  },
+  subtitle: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.subtitle,
+    textAlign: 'center',
+    marginBottom: 18,
+    opacity: 0.85,
+    fontWeight: '400',
+    lineHeight: 24,
+  },
+  phoneContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.phoneMarginBottom,
+  },
+  phoneImage: {
+    width: 220,
+    height: 340,
+    borderRadius: 32,
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 90,
+    left: 0,
+    width: 220,
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  overlayTitle: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.overlayTitle,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  overlaySubtitle: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.overlaySubtitle,
+    textAlign: 'center',
+    opacity: 0.85,
+  },
+  ring: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: COLORS.ring,
+    zIndex: 1,
+  },
+  solidCircle: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.ring,
+    zIndex: 4,
+  },
+  buttonBlue: {
+    backgroundColor: COLORS.buttonBlue,
+    borderRadius: SPACING.buttonRadius,
+    paddingVertical: SPACING.buttonVertical,
+    width: '90%',
+    alignSelf: 'center',
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  buttonGreen: {
+    backgroundColor: COLORS.buttonGreen,
+    borderRadius: SPACING.buttonRadius,
+    paddingVertical: SPACING.buttonVertical,
+    width: '90%',
+    alignSelf: 'center',
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  buttonText: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.button,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  handStyle: {
+    position: 'absolute',
+    width: 90,
+    resizeMode: 'contain',
+    zIndex: 2,
+  },
+  dragHandleContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 0,
+    zIndex: 100,
+  },
+  dragHandle: {
+    width: 48,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.dragHandle || '#444',
+    opacity: 0.18,
+    marginBottom: 6,
+  },
+});
+
+export default OnboardingScreen; 
