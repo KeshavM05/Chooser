@@ -82,8 +82,9 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   const sharedScale = useRef(new Animated.Value(1)).current;
   const [showStep1Rings, setShowStep1Rings] = useState(false);
   const [showStep1Hands, setShowStep1Hands] = useState(false);
-  const [hideLeftHand, setHideLeftHand] = useState(false);
+  const [leftHandFlyOut, setLeftHandFlyOut] = useState(false);
   const [showSolidCircle, setShowSolidCircle] = useState(false);
+  const leftHandTranslateX = useRef(new Animated.Value(-300)).current;
 
   // Fade out overlay for step 2
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -102,21 +103,38 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
     if (step === 1) {
       setShowStep1Rings(true);
       setShowStep1Hands(false);
-      setHideLeftHand(false);
+      setLeftHandFlyOut(false);
       setShowSolidCircle(false);
-      setTimeout(() => setShowStep1Hands(true), 600);
-    } else if (step === 2) {
-      // Animate left hand out, hide left ring, show solid circle
+      leftHandTranslateX.setValue(-300); // Reset position immediately
       setTimeout(() => {
-        setHideLeftHand(true);
-        setShowStep1Rings(false); // hide left ring
-        setShowSolidCircle(true); // show solid circle at right ring
-      }, 400);
+        setShowStep1Hands(true);
+        Animated.timing(leftHandTranslateX, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+      }, 600);
+    } else if (step === 2) {
+      // First, show solid circle and hide right ring, then animate hand out and hide left ring
+      setShowSolidCircle(true); // show solid circle at right ring
+      setShowStep1Rings(false); // hide right ring
+      setTimeout(() => {
+        setLeftHandFlyOut(true);
+        Animated.timing(leftHandTranslateX, {
+          toValue: -300,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+        setTimeout(() => {
+          setShowStep1Rings(false); // hide left ring
+        }, 400);
+      }, 300);
     } else {
       setShowStep1Rings(false);
       setShowStep1Hands(false);
-      setHideLeftHand(false);
+      setLeftHandFlyOut(false);
       setShowSolidCircle(false);
+      leftHandTranslateX.setValue(-300);
     }
   }, [step]);
 
@@ -213,8 +231,8 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
           {/* Step 1 & 2: Rings and hands, correct layer order, always rendered for continuity */}
           {(step === 1 || step === 2) && (
             <>
-              {/* Left ring: only show in step 1 and if not hiding left hand */}
-              {showStep1Rings && !hideLeftHand && (
+              {/* Left ring: only show in step 1 and if left hand is not flying out */}
+              {showStep1Rings && !leftHandFlyOut && (
                 <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} scale={sharedScale} />
               )}
               {/* Right ring: only show in step 1 and if not showing solid circle */}
@@ -223,25 +241,16 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
               )}
               {/* Solid circle: only show in step 2 at right ring position */}
               <SolidCircle x={rightRingPos.x} y={rightRingPos.y} size={ringSize} scale={sharedScale} visible={showSolidCircle} />
-              {/* Hands: left hand animates out in step 2, right hand stays */}
-              {showStep1Hands && !hideLeftHand && (
-                <AnimatedFinger
+              {/* Hands: left hand always rendered, animate in or out based on leftHandFlyOut */}
+              {showStep1Hands && (
+                <Animated.Image
                   source={fingerWhite}
-                  style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]}
-                  from={-300}
-                  to={0}
-                  visible={true}
-                  delay={0}
-                />
-              )}
-              {showStep1Hands && hideLeftHand && (
-                <AnimatedFinger
-                  source={fingerWhite}
-                  style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]}
-                  from={0}
-                  to={-300}
-                  visible={true}
-                  delay={0}
+                  style={[
+                    styles.handStyle,
+                    { ...leftHandStyle, width: handWidth, height: handHeight },
+                    { transform: [{ translateX: leftHandTranslateX }] },
+                  ]}
+                  resizeMode="contain"
                 />
               )}
               {showStep1Hands && (
