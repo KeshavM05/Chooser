@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.topMargin,
   },
   title: {
-    fontSize: 10,
+    fontSize: FONT_SIZES.title,
     fontWeight: 'bold',
     color: COLORS.text,
     textAlign: 'center',

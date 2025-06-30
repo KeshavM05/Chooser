@@ -8,19 +8,19 @@ const COLORS = {
 };
 
 const FONT_SIZES = {
-  title: 30,
+  title: 35,
   subtitle: 17,
-  overlayTitle: 28,
-  overlaySubtitle: 14,
+  overlayTitle: 25,
+  overlaySubtitle: 10,
   button: 20,
 };
 
 const SPACING = {
   screenPadding: 24,
-  topMargin: 30,
-  buttonRadius: 30,
+  topMargin: 50,
+  buttonRadius: 15,
   buttonVertical: 16,
-  phoneMarginBottom: 24,
+  phoneMarginBottom: 50,
 };
 
 export { COLORS, FONT_SIZES, SPACING }; 
