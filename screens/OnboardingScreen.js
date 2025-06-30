@@ -14,21 +14,8 @@ import { COLORS, FONT_SIZES, SPACING } from '../styles/theme';
 
 const { width, height } = Dimensions.get('window');
 
-// Animated pulsing ring
-const AnimatedRing = ({ x, y, visible = true, size }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (visible) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(scale, { toValue: 1.25, duration: 600, useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      scale.setValue(1);
-    }
-  }, [visible]);
+// Animated pulsing ring (uses shared scale)
+const AnimatedRing = ({ x, y, visible = true, size, scale }) => {
   if (!visible) return null;
   return (
     <Animated.View
@@ -48,25 +35,20 @@ const AnimatedRing = ({ x, y, visible = true, size }) => {
   );
 };
 
-// Animated solid circle
-const SolidCircle = ({ x, y }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.15, duration: 600, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+// Animated solid circle (uses shared scale, always rendered for pulsing)
+const SolidCircle = ({ x, y, size, scale, visible }) => {
   return (
     <Animated.View
       style={[
         styles.solidCircle,
         {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
           left: x,
           top: y,
           transform: [{ scale }],
+          opacity: visible ? 1 : 0,
         },
       ]}
     />
@@ -96,15 +78,12 @@ const AnimatedFinger = ({ source, style, from, to, visible = true, delay = 0, on
 
 const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   const [step, setStep] = useState(0);
-  // Step 1 animation state
+  // Step 1/2 animation state
+  const sharedScale = useRef(new Animated.Value(1)).current;
   const [showStep1Rings, setShowStep1Rings] = useState(false);
   const [showStep1Hands, setShowStep1Hands] = useState(false);
-  // Step 2 animation state
-  const [showFingers, setShowFingers] = useState(false);
-  const [showRings, setShowRings] = useState(false);
-  // Step 3 animation state
-  const [hideLeft, setHideLeft] = useState(false);
-  const [showSolid, setShowSolid] = useState(false);
+  const [hideLeftHand, setHideLeftHand] = useState(false);
+  const [showSolidCircle, setShowSolidCircle] = useState(false);
 
   // Fade out overlay for step 2
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -121,28 +100,23 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   // Step transitions
   useEffect(() => {
     if (step === 1) {
-      // Step 1: show rings, then hands
       setShowStep1Rings(true);
       setShowStep1Hands(false);
+      setHideLeftHand(false);
+      setShowSolidCircle(false);
       setTimeout(() => setShowStep1Hands(true), 600);
-      // Fade out overlay, then show fingers (legacy)
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        setShowFingers(true);
-      });
+    } else if (step === 2) {
+      // Animate left hand out, hide left ring, show solid circle
+      setTimeout(() => {
+        setHideLeftHand(true);
+        setShowStep1Rings(false); // hide left ring
+        setShowSolidCircle(true); // show solid circle at right ring
+      }, 400);
     } else {
       setShowStep1Rings(false);
       setShowStep1Hands(false);
-      overlayOpacity.setValue(1);
-      setShowFingers(false);
-      setShowRings(false);
-      setHandsSettled(false);
-      setShowLeftRing(true);
-      setHideLeft(false);
-      setShowSolid(false);
+      setHideLeftHand(false);
+      setShowSolidCircle(false);
     }
   }, [step]);
 
@@ -153,21 +127,20 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
     }
   }, [handsSettled, step]);
 
-  // Step 3: animate left hand out, fade out left ring, show solid circle
-  useEffect(() => {
-    if (step === 2) {
-      setTimeout(() => {
-        setHideLeft(true);
-        setShowLeftRing(false);
-        setTimeout(() => setShowSolid(true), 400);
-      }, 400);
-    }
-  }, [step]);
-
   // Reset step to 0 when resetKey changes
   useEffect(() => {
     setStep(0);
   }, [resetKey]);
+
+  // Shared pulsing animation for ring and solid circle
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(sharedScale, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+        Animated.timing(sharedScale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   // Layout constants (relative to phone mockup)
   const mockupWidth = 220;
@@ -237,16 +210,21 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
               <Text style={styles.overlaySubtitle}>A random finger selector.</Text>
             </View>
           )}
-          {/* Step 1: Rings and hands, correct layer order */}
-          {step === 1 && (
+          {/* Step 1 & 2: Rings and hands, correct layer order, always rendered for continuity */}
+          {(step === 1 || step === 2) && (
             <>
-              {/* Rings first (zIndex 1) */}
-              {showStep1Rings && <>
-                <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} />
-                <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />
-              </>}
-              {/* Hands on top (zIndex 2) */}
-              {showStep1Hands && <>
+              {/* Left ring: only show in step 1 and if not hiding left hand */}
+              {showStep1Rings && !hideLeftHand && (
+                <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} scale={sharedScale} />
+              )}
+              {/* Right ring: only show in step 1 and if not showing solid circle */}
+              {showStep1Rings && !showSolidCircle && (
+                <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} scale={sharedScale} />
+              )}
+              {/* Solid circle: only show in step 2 at right ring position */}
+              <SolidCircle x={rightRingPos.x} y={rightRingPos.y} size={ringSize} scale={sharedScale} visible={showSolidCircle} />
+              {/* Hands: left hand animates out in step 2, right hand stays */}
+              {showStep1Hands && !hideLeftHand && (
                 <AnimatedFinger
                   source={fingerWhite}
                   style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]}
@@ -255,6 +233,18 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
                   visible={true}
                   delay={0}
                 />
+              )}
+              {showStep1Hands && hideLeftHand && (
+                <AnimatedFinger
+                  source={fingerWhite}
+                  style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]}
+                  from={0}
+                  to={-300}
+                  visible={true}
+                  delay={0}
+                />
+              )}
+              {showStep1Hands && (
                 <AnimatedFinger
                   source={fingerBlack}
                   style={[styles.handStyle, { ...rightHandStyle, width: handWidth, height: handHeight }]}
@@ -263,32 +253,7 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
                   visible={true}
                   delay={0}
                 />
-              </>}
-            </>
-          )}
-          {/* Step 2: Animate left hand out, fade out left ring, show solid circle */}
-          {step === 2 && (
-            <>
-              <AnimatedFinger
-                source={fingerWhite}
-                style={leftHandStyle}
-                from={0}
-                to={-300}
-                visible={!hideLeft}
-                delay={0}
-              />
-              <AnimatedFinger
-                source={fingerBlack}
-                style={rightHandStyle}
-                from={0}
-                to={0}
-                visible={true}
-                delay={0}
-              />
-              {/* Fade out left ring, replace right ring with solid circle */}
-              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={showLeftRing} size={ringSize} />
-              {!showSolid && <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />}
-              {showSolid && <SolidCircle x={rightRingPos.x} y={rightRingPos.y} />}
+              )}
             </>
           )}
         </View>
@@ -386,7 +351,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: COLORS.ring,
-    zIndex: 4,
+    zIndex: 1,
   },
   buttonBlue: {
     backgroundColor: COLORS.buttonBlue,
