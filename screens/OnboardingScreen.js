@@ -15,7 +15,7 @@ import { COLORS, FONT_SIZES, SPACING } from '../styles/theme';
 const { width, height } = Dimensions.get('window');
 
 // Animated pulsing ring
-const AnimatedRing = ({ x, y, visible = true }) => {
+const AnimatedRing = ({ x, y, visible = true, size }) => {
   const scale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (visible) {
@@ -35,6 +35,9 @@ const AnimatedRing = ({ x, y, visible = true }) => {
       style={[
         styles.ring,
         {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
           left: x,
           top: y,
           transform: [{ scale }],
@@ -93,6 +96,9 @@ const AnimatedFinger = ({ source, style, from, to, visible = true, delay = 0, on
 
 const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   const [step, setStep] = useState(0);
+  // Step 1 animation state
+  const [showStep1Rings, setShowStep1Rings] = useState(false);
+  const [showStep1Hands, setShowStep1Hands] = useState(false);
   // Step 2 animation state
   const [showFingers, setShowFingers] = useState(false);
   const [showRings, setShowRings] = useState(false);
@@ -115,7 +121,11 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   // Step transitions
   useEffect(() => {
     if (step === 1) {
-      // Fade out overlay, then show fingers
+      // Step 1: show rings, then hands
+      setShowStep1Rings(true);
+      setShowStep1Hands(false);
+      setTimeout(() => setShowStep1Hands(true), 600);
+      // Fade out overlay, then show fingers (legacy)
       Animated.timing(overlayOpacity, {
         toValue: 0,
         duration: 500,
@@ -124,6 +134,8 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
         setShowFingers(true);
       });
     } else {
+      setShowStep1Rings(false);
+      setShowStep1Hands(false);
       overlayOpacity.setValue(1);
       setShowFingers(false);
       setShowRings(false);
@@ -164,14 +176,14 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
   const mockupCenterY = mockupHeight / 2;
 
   const handWidth = 70 * 2.5;
-  const handHeight = 120 * 2.5;
-  const ringSize = 20;
+  const handHeight = 120 * 2.5; 
+  const ringSize = 60;
 
   // Example offsets (tune as needed)
-  const leftHandOffset = { x: -55, y: -80 };
-  const rightHandOffset = { x: 55, y: 80 };
-  const leftRingOffset = { x: -0, y: 0 };
-  const rightRingOffset = { x: 0, y: 0 };
+  const leftHandOffset = { x: -55, y: -100 };
+  const rightHandOffset = { x: 55, y: 100 };
+  const leftRingOffset = { x: -30, y: -94 };
+  const rightRingOffset = { x: -30, y: 30 };
 
   const leftHandStyle = {
     position: 'absolute',
@@ -190,12 +202,12 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
     zIndex: 2,
   };
   const leftRingPos = {
-    x: mockupCenterX + leftRingOffset.x - ringSize / 2,
-    y: mockupCenterY + leftRingOffset.y - ringSize / 2,
+    x: mockupCenterX + leftRingOffset.x,
+    y: mockupCenterY + leftRingOffset.y,
   };
   const rightRingPos = {
-    x: mockupCenterX + rightRingOffset.x - ringSize / 2,
-    y: mockupCenterY + rightRingOffset.y - ringSize / 2,
+    x: mockupCenterX + rightRingOffset.x,
+    y: mockupCenterY + rightRingOffset.y,
   };
 
   return (
@@ -229,11 +241,29 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
           {step === 1 && (
             <>
               {/* Rings first (zIndex 1) */}
-              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} />
-              <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />
+              {showStep1Rings && <>
+                <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={true} size={ringSize} />
+                <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />
+              </>}
               {/* Hands on top (zIndex 2) */}
-              <Animated.Image source={fingerWhite} style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]} />
-              <Animated.Image source={fingerBlack} style={[styles.handStyle, { ...rightHandStyle, width: handWidth, height: handHeight }]} />
+              {showStep1Hands && <>
+                <AnimatedFinger
+                  source={fingerWhite}
+                  style={[styles.handStyle, { ...leftHandStyle, width: handWidth, height: handHeight }]}
+                  from={-300}
+                  to={0}
+                  visible={true}
+                  delay={0}
+                />
+                <AnimatedFinger
+                  source={fingerBlack}
+                  style={[styles.handStyle, { ...rightHandStyle, width: handWidth, height: handHeight }]}
+                  from={300}
+                  to={0}
+                  visible={true}
+                  delay={0}
+                />
+              </>}
             </>
           )}
           {/* Step 2: Animate left hand out, fade out left ring, show solid circle */}
@@ -256,8 +286,8 @@ const OnboardingScreen = ({ onDone, resetKey = 0, ...props }) => {
                 delay={0}
               />
               {/* Fade out left ring, replace right ring with solid circle */}
-              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={showLeftRing} />
-              {!showSolid && <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} />}
+              <AnimatedRing x={leftRingPos.x} y={leftRingPos.y} visible={showLeftRing} size={ringSize} />
+              {!showSolid && <AnimatedRing x={rightRingPos.x} y={rightRingPos.y} visible={true} size={ringSize} />}
               {showSolid && <SolidCircle x={rightRingPos.x} y={rightRingPos.y} />}
             </>
           )}
@@ -346,10 +376,7 @@ const styles = StyleSheet.create({
   },
   ring: {
     position: 'absolute',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 3,
+    borderWidth: 6,
     borderColor: COLORS.ring,
     zIndex: 1,
   },
