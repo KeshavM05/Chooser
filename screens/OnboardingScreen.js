@@ -361,6 +361,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: COLORS.ring,
     zIndex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   buttonBlue: {
     backgroundColor: COLORS.buttonBlue,
