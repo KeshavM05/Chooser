@@ -35,7 +35,10 @@ const HomeScreen = () => {
   // Unified handler to close and reset onboarding
   const handleOnboardingDone = () => {
     setShowOnboarding(false);
-    setResetKey(k => k + 1);
+    // Delay the reset until after the sheet animation completes
+    setTimeout(() => {
+      setResetKey(k => k + 1);
+    }, 300); // Match the sheet animation duration
   };
 
   // Handle responder events
