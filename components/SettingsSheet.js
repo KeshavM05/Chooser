@@ -22,18 +22,57 @@ const AppIconCircle = () => (
   </View>
 );
 
-const SettingsSheet = ({ visible, onClose }) => {
+const SettingsSheet = ({ visible, onClose, settings, onSettingsChange }) => {
   // Bottom sheet animation
   const sheetAnim = useRef(new RNAnimated.Value(height)).current;
   const dragY = useRef(new RNAnimated.Value(0)).current;
   const dragOffset = useRef(0);
 
-  // Settings state
-  const [winners, setWinners] = useState(1);
-  const [rankWinners, setRankWinners] = useState(false);
-  const [giveOrder, setGiveOrder] = useState(false);
-  const [sounds, setSounds] = useState(true);
-  const [vibrations, setVibrations] = useState(true);
+  // Settings state - use props as initial values
+  const [winners, setWinners] = useState(settings?.winners || 1);
+  const [rankWinners, setRankWinners] = useState(settings?.rankWinners || false);
+  const [sounds, setSounds] = useState(settings?.sounds !== false); // default to true
+  const [vibrations, setVibrations] = useState(settings?.vibrations === true); // default to false
+
+  // Update local state when props change
+  React.useEffect(() => {
+    if (settings) {
+      setWinners(settings.winners || 1);
+      setRankWinners(settings.rankWinners || false);
+      setSounds(settings.sounds !== false);
+      setVibrations(settings.vibrations === true);
+    }
+  }, [settings]);
+
+  // Call onSettingsChange when any setting changes
+  const updateSetting = (key, value) => {
+    const newSettings = {
+      winners,
+      rankWinners,
+      sounds,
+      vibrations,
+      [key]: value
+    };
+    
+    // Update local state
+    switch (key) {
+      case 'winners':
+        setWinners(value);
+        break;
+      case 'rankWinners':
+        setRankWinners(value);
+        break;
+      case 'sounds':
+        setSounds(value);
+        break;
+      case 'vibrations':
+        setVibrations(value);
+        break;
+    }
+    
+    // Notify parent
+    onSettingsChange && onSettingsChange(newSettings);
+  };
 
   // Animate sheet in/out
   React.useEffect(() => {
@@ -97,7 +136,7 @@ const SettingsSheet = ({ visible, onClose }) => {
         <TouchableOpacity
           key={num}
           style={[styles.segment, winners === num && styles.segmentSelected]}
-          onPress={() => setWinners(num)}
+          onPress={() => updateSetting('winners', num)}
         >
           <Text style={[styles.segmentText, winners === num && styles.segmentTextSelected]}>{num}</Text>
         </TouchableOpacity>
@@ -162,15 +201,7 @@ const SettingsSheet = ({ visible, onClose }) => {
               <MaterialCommunityIcons name="trophy-outline" size={20} color="#aaa" style={styles.rowIcon} />
               <Text style={styles.rowLabel}>Rank winners</Text>
               <View style={{ flex: 1 }} />
-              <Switch value={rankWinners} onValueChange={setRankWinners} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={rankWinners ? '#fff' : '#eee'} />
-            </View>
-          </View>
-          <View style={styles.rowCard}>
-            <View style={styles.row}>
-              <MaterialCommunityIcons name="gesture" size={20} color="#aaa" style={styles.rowIcon} />
-              <Text style={styles.rowLabel}>Give order</Text>
-              <View style={{ flex: 1 }} />
-              <Switch value={giveOrder} onValueChange={setGiveOrder} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={giveOrder ? '#fff' : '#eee'} />
+              <Switch value={rankWinners} onValueChange={(value) => updateSetting('rankWinners', value)} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={rankWinners ? '#fff' : '#eee'} />
             </View>
           </View>
           <View style={styles.rowCard}>
@@ -178,7 +209,7 @@ const SettingsSheet = ({ visible, onClose }) => {
               <Ionicons name="volume-medium-outline" size={20} color="#aaa" style={styles.rowIcon} />
               <Text style={styles.rowLabel}>Sounds</Text>
               <View style={{ flex: 1 }} />
-              <Switch value={sounds} onValueChange={setSounds} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={sounds ? '#fff' : '#eee'} />
+              <Switch value={sounds} onValueChange={(value) => updateSetting('sounds', value)} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={sounds ? '#fff' : '#eee'} />
             </View>
           </View>
           <View style={styles.rowCard}>
@@ -186,7 +217,7 @@ const SettingsSheet = ({ visible, onClose }) => {
               <Ionicons name="help-circle-outline" size={20} color="#aaa" style={styles.rowIcon} />
               <Text style={styles.rowLabel}>Vibrations</Text>
               <View style={{ flex: 1 }} />
-              <Switch value={vibrations} onValueChange={setVibrations} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={vibrations ? '#fff' : '#eee'} />
+              <Switch value={vibrations} onValueChange={(value) => updateSetting('vibrations', value)} trackColor={{ true: '#2ecc40', false: '#888' }} thumbColor={vibrations ? '#fff' : '#eee'} />
             </View>
           </View>
         </View>

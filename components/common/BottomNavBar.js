@@ -4,11 +4,11 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { COLORS } from '../../styles/theme';
 
 const TABS = [
-  { key: 'chooser', label: 'Chooser', icon: <Ionicons name="hand-left" size={24} /> },
-  { key: 'lucky', label: 'Lucky', icon: <Ionicons name="arrow-forward" size={24} /> },
-  { key: 'roulette', label: 'Roulette', icon: <MaterialIcons name="casino" size={24} /> },
-  { key: 'number', label: 'Number', icon: <MaterialIcons name="looks-one" size={24} /> },
-  { key: 'coin', label: 'Coin', icon: <Ionicons name="star" size={24} /> },
+  { key: 'chooser', label: 'Chooser', icon: <Ionicons name="hand-left" size={33} /> },
+  { key: 'lucky', label: 'Lucky', icon: <Ionicons name="arrow-forward" size={33} /> },
+  { key: 'roulette', label: 'Roulette', icon: <MaterialIcons name="casino" size={33} /> },
+  { key: 'number', label: 'Number', icon: <MaterialIcons name="looks-one" size={33} /> },
+  { key: 'coin', label: 'Coin', icon: <Ionicons name="star" size={33} /> },
 ];
 
 const BottomNavBar = ({ activeTab = 'chooser', onTabPress }) => (
@@ -32,11 +32,11 @@ const BottomNavBar = ({ activeTab = 'chooser', onTabPress }) => (
 
 const styles = StyleSheet.create({
   bottomNav: {
-    backgroundColor: '#A14A00',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
     paddingTop: 20,
-    paddingBottom: 20,
+    paddingBottom: 35,
   },
   navItems: {
     flexDirection: 'row',

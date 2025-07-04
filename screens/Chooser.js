@@ -9,6 +9,7 @@ import {
   Platform,
   Animated as RNAnimated,
   PanResponder,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,12 +75,24 @@ const HomeScreen = () => {
   const titleOpacity = useRef(new RNAnimated.Value(1)).current;
   const subtitleOpacity = useRef(new RNAnimated.Value(1)).current;
   
+  // Animation values for UI elements fade
+  const topRowOpacity = useRef(new RNAnimated.Value(1)).current;
+  const bottomNavOpacity = useRef(new RNAnimated.Value(1)).current;
+  
   // Timer ref for selection
   const selectionTimerRef = useRef(null);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState({ type: 'gradient', key: 'virgin' });
+  
+  // Settings state
+  const [settings, setSettings] = useState({
+    winners: 1,
+    rankWinners: false,
+    sounds: true,
+    vibrations: false,
+  });
 
   // Unified handler to close and reset onboarding
   const handleOnboardingDone = () => {
@@ -113,10 +126,40 @@ const HomeScreen = () => {
     });
   };
 
+  // Check if touch is within interactive areas (top row or bottom nav)
+  const isTouchInInteractiveArea = (x, y) => {
+    const topRowHeight = Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + 10;
+    const topRowBottom = topRowHeight + 40; // 40 is the height of the icon buttons
+    
+    const bottomNavTop = height - 80; // Approximate bottom nav area (adjust as needed)
+    
+    // Check if touch is in top row area
+    if (y < topRowBottom && x >= 20 && x <= width - 20) {
+      return true;
+    }
+    
+    // Check if touch is in bottom nav area
+    if (y > bottomNavTop) {
+      return true;
+    }
+    
+    return false;
+  };
+
   // Handle touch events for multi-touch support
   const handleTouchStart = (evt) => {
     const touchesArr = evt.nativeEvent.touches;
-    const newTouches = Array.from(touchesArr).map(t => ({
+    
+    // Filter out touches in interactive areas
+    const validTouches = Array.from(touchesArr).filter(t => 
+      !isTouchInInteractiveArea(t.pageX, t.pageY)
+    );
+    
+    if (validTouches.length === 0) {
+      return; // No valid touches, don't process
+    }
+    
+    const newTouches = validTouches.map(t => ({
       id: t.identifier,
       x: t.pageX,
       y: t.pageY,
@@ -126,14 +169,36 @@ const HomeScreen = () => {
     // Detect new fingers (ids not in previous touches)
     const prevIds = touches.map(t => t.id);
     const newFingerTouches = newTouches.filter(t => !prevIds.includes(t.id));
-    newFingerTouches.forEach(() => playRandomPop());
+    
+    // Only play sounds if sounds are enabled
+    if (settings.sounds) {
+      newFingerTouches.forEach(() => playRandomPop());
+    }
+    
+    // Vibrate when new fingers are placed
+    if (settings.vibrations && newFingerTouches.length > 0) {
+      Vibration.vibrate(50); // Short vibration for finger placement
+    }
 
+    // Check if we have enough fingers to start selection
+    const minFingersNeeded = settings.winners + 1;
+    
     // If this is the first touch (no previous touches), start the selection timer
     if (touchesArr.length === 1) {
       setFirstTouchTime(Date.now());
+      // Only start timer if we have enough fingers
+      if (newTouches.length >= minFingersNeeded) {
+        startSelectionTimer();
+      }
+    }
+    
+    setTouches(newTouches);
+    
+    // Start timer if we now have enough fingers
+    if (newTouches.length >= minFingersNeeded && !isSelecting && !selectedTouch) {
       startSelectionTimer();
     }
-    setTouches(newTouches);
+    
     if (titleOpacity._value > 0) {
       RNAnimated.parallel([
         RNAnimated.timing(titleOpacity, {
@@ -146,13 +211,29 @@ const HomeScreen = () => {
           duration: 500,
           useNativeDriver: true,
         }),
+        RNAnimated.timing(topRowOpacity, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(bottomNavOpacity, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
       ]).start();
     }
   };
 
   const handleTouchMove = (evt) => {
     const touches = evt.nativeEvent.touches;
-    const newTouches = Array.from(touches).map(t => ({
+    
+    // Filter out touches in interactive areas
+    const validTouches = Array.from(touches).filter(t => 
+      !isTouchInInteractiveArea(t.pageX, t.pageY)
+    );
+    
+    const newTouches = validTouches.map(t => ({
       id: t.identifier,
       x: t.pageX,
       y: t.pageY,
@@ -174,7 +255,12 @@ const HomeScreen = () => {
     
     // If no touches remain, reset everything
     if (newTouches.length === 0) {
-      playSwish();
+      if (settings.sounds) {
+        playSwish();
+      }
+      if (settings.vibrations) {
+        Vibration.vibrate(75); // Short vibration when all fingers removed
+      }
       setTouches([]);
       setSelectedTouch(null);
       setIsSelecting(false);
@@ -194,6 +280,16 @@ const HomeScreen = () => {
           useNativeDriver: true,
         }),
         RNAnimated.timing(subtitleOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(topRowOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(bottomNavOpacity, {
           toValue: 1,
           duration: 300,
           useNativeDriver: true,
@@ -223,15 +319,35 @@ const HomeScreen = () => {
 
   // Perform the selection process
   const performSelection = () => {
-    console.log('Performing selection with', touches.length, 'touches');
+    console.log('Performing selection with', touches.length, 'touches for', settings.winners, 'winners');
     setIsSelecting(true);
     
-    // Wait for the fill animation to complete, then select winner
+    // Vibrate when selection starts
+    if (settings.vibrations) {
+      Vibration.vibrate(100); // Medium vibration for selection start
+    }
+    
+    // Wait for the fill animation to complete, then select winners
     setTimeout(() => {
       if (touches.length > 0) {
-        const winnerIndex = Math.floor(Math.random() * touches.length);
-        console.log('Selected winner at index:', winnerIndex);
-        setSelectedTouch(touches[winnerIndex]);
+        const numWinners = Math.min(settings.winners, touches.length);
+        
+        if (settings.rankWinners) {
+          // Select multiple winners and rank them
+          const shuffledTouches = [...touches].sort(() => Math.random() - 0.5);
+          const winners = shuffledTouches.slice(0, numWinners);
+          setSelectedTouch(winners); // Store array of winners
+        } else {
+          // Select single winner (for now, just pick the first winner)
+          const winnerIndex = Math.floor(Math.random() * touches.length);
+          console.log('Selected winner at index:', winnerIndex);
+          setSelectedTouch(touches[winnerIndex]);
+        }
+        
+        // Vibrate when winners are chosen
+        if (settings.vibrations) {
+          Vibration.vibrate([0, 100, 50, 100]); // Pattern: wait, vibrate, wait, vibrate
+        }
       }
     }, 800); // Wait for fill animation
   };
@@ -312,14 +428,26 @@ const HomeScreen = () => {
   // Render touch rings
   const renderTouchRings = () => {
     if (selectedTouch) {
-      // Show only the winner with pulse animation
-      return (
-        <WinnerRing
-          key={selectedTouch.id}
-          x={selectedTouch.x}
-          y={selectedTouch.y}
-        />
-      );
+      if (Array.isArray(selectedTouch)) {
+        // Multiple winners (ranked)
+        return selectedTouch.map((winner, index) => (
+          <WinnerRing
+            key={`winner-${winner.id}-${index}`}
+            x={winner.x}
+            y={winner.y}
+            rank={index + 1}
+          />
+        ));
+      } else {
+        // Single winner
+        return (
+          <WinnerRing
+            key={selectedTouch.id}
+            x={selectedTouch.x}
+            y={selectedTouch.y}
+          />
+        );
+      }
     }
 
     if (isSelecting) {
@@ -367,7 +495,7 @@ const HomeScreen = () => {
           onTouchEnd={handleTouchEnd}
         >
           {/* Top Row */}
-          <View style={styles.topRow} pointerEvents="box-none">
+          <RNAnimated.View style={[styles.topRow, { opacity: topRowOpacity }]} pointerEvents="box-none">
             <TouchableOpacity style={styles.iconButton} onPress={() => setShowOnboarding(true)}>
               <Text style={styles.iconText}>?</Text>
             </TouchableOpacity>
@@ -379,7 +507,7 @@ const HomeScreen = () => {
                 <Ionicons name="settings" size={24} color="white" />
               </TouchableOpacity>
             </View>
-          </View>
+          </RNAnimated.View>
 
           {/* Center Content */}
           <View style={styles.centerContent} pointerEvents="box-none">
@@ -391,7 +519,10 @@ const HomeScreen = () => {
           {renderTouchRings()}
 
           {/* Bottom Navigation */}
-          <BottomNavBar activeTab="chooser" />
+          {/* <BottomNavBar activeTab="chooser" /> */}
+          <RNAnimated.View style={{ opacity: bottomNavOpacity }}>
+            <BottomNavBar activeTab="chooser" />
+          </RNAnimated.View>
         </View>
         {/* Onboarding Bottom Sheet */}
         {showOnboarding && (
@@ -419,7 +550,12 @@ const HomeScreen = () => {
           <OnboardingScreen key={resetKey} resetKey={resetKey} onDone={handleOnboardingDone} style={{ height: SHEET_HEIGHT }} />
         </RNAnimated.View>
         {/* Settings Bottom Sheet */}
-        <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
+        <SettingsSheet 
+          visible={showSettings} 
+          onClose={() => setShowSettings(false)}
+          settings={settings}
+          onSettingsChange={setSettings}
+        />
         {/* Themes Bottom Sheet */}
         <ThemesSheet
           visible={showThemes}
@@ -511,7 +647,7 @@ const FilledRing = ({ x, y }) => {
 };
 
 // Winner Ring Component (pulsing winner)
-const WinnerRing = ({ x, y }) => {
+const WinnerRing = ({ x, y, rank }) => {
   const pulseScale = useRef(new RNAnimated.Value(1)).current;
 
   useEffect(() => {
@@ -556,7 +692,13 @@ const WinnerRing = ({ x, y }) => {
           transform: [{ scale: pulseScale }],
         },
       ]}
-    />
+    >
+      {rank && (
+        <View style={styles.rankBadge}>
+          <Text style={styles.rankText}>{rank}</Text>
+        </View>
+      )}
+    </RNAnimated.View>
   );
 };
 
@@ -646,6 +788,29 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
     zIndex: 10,
+  },
+  rankBadge: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: '#FFA726',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  rankText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
   },
   sheetOverlay: {
     position: 'absolute',
